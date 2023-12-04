@@ -6,7 +6,7 @@ const Client = require('ftp');
 const ftp = require("basic-ftp");
 
 let config = {
-  host: '192.168.1.58',
+  host: '80.211.123.141',
   port: 21,
   user: 'user',
   password: '123Lion+90'
