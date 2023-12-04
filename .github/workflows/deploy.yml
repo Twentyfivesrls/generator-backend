@@ -15,7 +15,7 @@ jobs:
           node-version: '16'
       - name: Build and push Docker image
         run: |
-          echo ecco la situazione com'è
+          echo ecco la situazione com
           echo ${{ secrets.DOCKER_PASSWORD }}
           docker build -t generator-image .
           docker tag generator-image:latest ${{ secrets.DOCKER_REPO_URL }}/generator-image:latest
