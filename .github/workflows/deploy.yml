@@ -17,7 +17,7 @@ jobs:
         run: |
           docker build -t generator-image .
           docker tag generator-image:latest ${{ secrets.DOCKER_REPO_URL }}/generator-image:latest
-          echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+          docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin ${{ secrets.DOCKERHUB_PASSWORD }}
           docker push ${{ secrets.DOCKER_REPO_URL }}/generator-image:latest
       - name: SSH remote server and deploy
         uses: appleboy/ssh-action@master
