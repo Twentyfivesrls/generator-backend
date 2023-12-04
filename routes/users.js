@@ -2,9 +2,8 @@ var express = require('express');
 var router = express.Router();
 const promisifyAll = require('util-promisifyall');
 const Client = require('ftp');
-const zlib = require('zlib');
-const { parser } = require('stream-json');
-const { streamArray } = require('stream-json/streamers/StreamArray');
+
+const ftp = require("basic-ftp");
 
 let config = {
   host: '192.168.1.58',
@@ -12,11 +11,6 @@ let config = {
   user: 'user',
   password: '123Lion+90'
 };
-
-let filelist = [];
-let content = '';
-
-
 
 
 let client = new Client();
@@ -30,47 +24,79 @@ client.autoConnect = async () => {
 };
 
 client.recursiveList = async (path) => {
-    if (!filelist)
-        filelist = [];
+    let filelist = [];
 
     const rootList = await client.listAsync(path);
 
     const promises = await rootList.map(file => {
         return new Promise((resolve) => {
             let filePath = `${path}/${file.name}`;
+            file.parentDir = filePath.replace(file.name, '');
+            file.path = filePath;
+            file.level = 0;
+            filelist.push(file);
             if (file.type === 'd') {
-                resolve(client.recursiveList(filePath));
+                resolve(client.recursiveSubtree(filePath, file, 1));
             } else {
-                file.parentDir = filePath.replace(file.name, '');
-                file.path = filePath;
-                filelist.push(file);
+                resolve();
+            }
+        });
+    });
+
+
+
+    await Promise.all(promises);
+    return filelist;
+};
+
+
+client.recursiveSubtree = async (path, currentNode, currentLevel) => {
+    if(currentNode.sons === undefined || currentNode.sons === null){
+        currentNode.sons = [];
+    }
+
+    const rootList = await client.listAsync(path);
+
+    const promises = await rootList.map(file => {
+        return new Promise((resolve) => {
+            let filePath = `${path}/${file.name}`;
+            file.parentDir = filePath.replace(file.name, '');
+            file.path = filePath;
+            file.level = currentLevel;
+            currentNode.sons.push(file);
+            if (file.type === 'd') {
+                resolve(client.recursiveSubtree(filePath, file, currentLevel+1));
+            } else {
                 resolve();
             }
         });
     });
 
     await Promise.all(promises);
-    return filelist;
-};
+}
 
 async function getResult(){
     await client.autoConnect();
     const remoteFiles = await client.recursiveList('/ftp/user');
     //response.send(remoteFiles);
+    await client.end();
     return remoteFiles;
 }
 
 async function downloadFile(path, res){
+    let content = '';
     await client.autoConnect();
-    console.log("MI SONO CONNESSO, PATH");
-    console.log(path);
     await client.get(path, function(err, stream){
-        if(err) throw err;
+        if(err) {
+            res.send("ERRORE");
+            return;
+        }
         stream.on('data', function(chunk) {
             content += chunk.toString();
         });
-        stream.on('end', function() {
+        stream.on('end', async function() {
             // content variable now contains all file content.
+            await client.end();
             res.send(JSON.parse(content));
         });
     });
@@ -78,9 +104,38 @@ async function downloadFile(path, res){
 
 async function saveFile(buffer,path,  res){
     await client.autoConnect();
-    client.put(buffer, path, function (response) {
+    client.put(buffer, path,  function (response) {
+        client.end();
         res.send(response);
     });
+
+}
+
+async function createDir(path){
+   /* await client.autoConnect();
+    console.log("MI SONO CONNESSO, FACCIO LA MKDIR");
+    await client.mkdir(path, true, callback);
+    await client.end();
+    return true; */
+    const newClient = new ftp.Client();
+    newClient.ftp.verbose = true;
+    try{
+        await newClient.access(config);
+        await newClient.ensureDir(path);
+    }catch(err){
+        return false;
+    }
+    await newClient.close();
+    return true;
+}
+
+function callback(errorMessage){
+    console.log("ERRORE NEL MKDIR");
+    console.log(errorMessage);
+}
+
+async function createBasicFtpClient(){
+
 }
 
 /* GET users listing. */
@@ -91,17 +146,19 @@ router.get('/', function(req, res, next) {
 });
 
 router.get('/fromFile', function(req, res, next)  {
-
     getResult().then(result => {
         var currentElement = result[1];
         downloadFile(currentElement['path'], res).then(stream => {
-           console.log("HO FINITO");
         });
     });
 });
 
 router.post('/downloadFile', function(req, res, next)  {
     let element = req.body;
+    if(element['type'] === 'd'){
+        res.send("YOU CANNOT DOWNLOAD A DIRECTORY");
+        return;
+    }
     // element should contain COMPLETE path ( WITH THE FILENAME.json )
     downloadFile(element['path'], res);
 });
@@ -117,6 +174,16 @@ router.post('/saveFile', function(req, res, next)  {
     let buffer = Buffer.from(JSON.stringify(element['content']));
     let path = element['path'];
     saveFile(buffer,path,  res);
+});
+
+router.post('/createFolder', function(req, res, next)  {
+    let element = req.body;
+    let completePathToSave = element['path'];
+    console.log("PATH COMPLETO DA SALVARE");
+    console.log(completePathToSave);
+    createDir(completePathToSave).then(result => {
+        res.send(result);
+    })
 });
 
 module.exports = router;
