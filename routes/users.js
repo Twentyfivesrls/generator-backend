@@ -85,6 +85,8 @@ async function getResult(){
 
 async function downloadFile(path, res){
     let content = '';
+    let pathArray = path.split('/');
+    let fileName = pathArray[pathArray.length-1];
     await client.autoConnect();
     await client.get(path, function(err, stream){
         if(err) {
@@ -97,7 +99,10 @@ async function downloadFile(path, res){
         stream.on('end', async function() {
             // content variable now contains all file content.
             await client.end();
-            res.send(JSON.parse(content));
+            let result = {};
+            result['content'] = JSON.parse(content);
+            result['fileName'] = fileName;
+            res.send(result);
         });
     });
 }
