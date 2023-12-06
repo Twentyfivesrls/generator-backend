@@ -176,6 +176,9 @@ router.post('/saveFile', function(req, res, next)  {
     // "content" : {entire content here},
     // "path" : "CURRENT COMPLETE FILE PATH ( WITH THE FILENAME.json )
     // }
+    if(element['content'] === null || element['content'] === undefined){
+        element['content'] = {};
+    }
     let buffer = Buffer.from(JSON.stringify(element['content']));
     let path = element['path'];
     saveFile(buffer,path,  res);
