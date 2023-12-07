@@ -13,6 +13,7 @@ let config = {
 };
 
 
+
 let client = new Client();
 client = promisifyAll(client);
 
@@ -90,6 +91,7 @@ async function downloadFile(path, res){
     await client.autoConnect();
     await client.get(path, function(err, stream){
         if(err) {
+            client.end();
             res.send("ERRORE");
             return;
         }
@@ -99,6 +101,7 @@ async function downloadFile(path, res){
         stream.on('end', async function() {
             // content variable now contains all file content.
             await client.end();
+
             let result = {};
             result['content'] = JSON.parse(content);
             result['fileName'] = fileName;
